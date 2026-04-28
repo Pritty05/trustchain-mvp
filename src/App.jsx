@@ -7,6 +7,7 @@ import {
   Asset,
   BASE_FEE,
   Account,
+  Memo,
 } from "stellar-sdk";
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
@@ -20,6 +21,48 @@ const SUPPORTED_WALLETS = [
   { id: "xbull", name: "xBull", icon: "🐂" },
   { id: "albedo", name: "Albedo", icon: "🌟" },
 ];
+
+// ✅ NEW: Feedback transaction function
+const submitFeedbackTransaction = async (userPublicKey) => {
+  const accountRes = await fetch(`${HORIZON_URL}/accounts/${userPublicKey}`);
+  const accountData = await accountRes.json();
+  const account = new Account(userPublicKey, accountData.sequence);
+
+  const transaction = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(
+      Operation.payment({
+        destination: userPublicKey, // sends to themselves
+        asset: Asset.native(),
+        amount: "0.0000001",
+      })
+    )
+    .addMemo(Memo.text("trustchain-feedback"))
+    .setTimeout(30)
+    .build();
+
+  const signResult = await signTransaction(transaction.toXDR(), {
+    networkPassphrase: Networks.TESTNET,
+  });
+
+  const signedXDR = signResult.signedTxXdr || signResult;
+
+  const submitRes = await fetch(`${HORIZON_URL}/transactions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `tx=${encodeURIComponent(signedXDR)}`,
+  });
+
+  const submitData = await submitRes.json();
+
+  if (!submitData.hash) {
+    throw new Error("Transaction failed: " + JSON.stringify(submitData));
+  }
+
+  return submitData.hash;
+};
 
 function App() {
   const [wallet, setWallet] = useState("");
@@ -38,6 +81,10 @@ function App() {
   const [contractLoading, setContractLoading] = useState(false);
   const [tokenResult, setTokenResult] = useState("");
   const [tokenLoading, setTokenLoading] = useState(false);
+
+  // ✅ NEW: Feedback states
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackTxHash, setFeedbackTxHash] = useState("");
 
   const addEvent = (msg) => {
     setEvents(prev => [
@@ -108,6 +155,7 @@ function App() {
     setSelectedWallet("");
     setContractResult("");
     setTokenResult("");
+    setFeedbackTxHash("");
     addEvent("🔌 Wallet disconnected");
   };
 
@@ -228,6 +276,33 @@ function App() {
       setTokenResult("❌ Failed: " + err.message);
     } finally {
       setTokenLoading(false);
+    }
+  };
+
+  // ✅ NEW: Handle feedback button click
+  const handleFeedback = async () => {
+    if (!wallet) {
+      alert("Please connect your wallet first to submit feedback!");
+      return;
+    }
+    try {
+      setFeedbackLoading(true);
+      setFeedbackTxHash("");
+      addEvent("🙏 Submitting feedback transaction...");
+
+      const hash = await submitFeedbackTransaction(wallet);
+
+      setFeedbackTxHash(hash);
+      addEvent(`✅ Feedback tx confirmed: ${hash.slice(0, 12)}...`);
+
+      // Open Google Form after transaction
+      window.open(GOOGLE_FORM_URL, "_blank");
+
+    } catch (err) {
+      addEvent("❌ Feedback tx failed: " + err.message);
+      alert("Transaction failed: " + err.message + "\n\nMake sure Freighter is connected and you have testnet XLM.");
+    } finally {
+      setFeedbackLoading(false);
     }
   };
 
@@ -435,7 +510,7 @@ function App() {
         )}
       </div>
 
-      {/* Feedback Banner */}
+      {/* ✅ NEW: Feedback Banner with Transaction */}
       <div style={{
         padding: "20px 16px",
         background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
@@ -443,15 +518,36 @@ function App() {
       }}>
         <p style={{ margin: "0 0 6px 0", fontWeight: "bold", fontSize: "16px" }}>🙏 Help us improve TrustChain!</p>
         <p style={{ margin: "0 0 12px 0", fontSize: "13px", opacity: 0.9 }}>Share your feedback and wallet address</p>
-        <a href={GOOGLE_FORM_URL} target="_blank" rel="noreferrer"
+
+        <button
+          onClick={handleFeedback}
+          disabled={feedbackLoading}
           style={{
             display: "inline-block", padding: "10px 24px",
-            background: "white", color: "#6366f1",
+            background: feedbackLoading ? "#ccc" : "white",
+            color: feedbackLoading ? "#888" : "#6366f1",
             borderRadius: "8px", fontWeight: "bold",
-            textDecoration: "none", fontSize: "14px"
-          }}>
-          📝 Fill Feedback Form
-        </a>
+            border: "none", fontSize: "14px", cursor: "pointer"
+          }}
+        >
+          {feedbackLoading ? "⏳ Processing transaction..." : "📝 Fill Feedback Form"}
+        </button>
+
+        {/* ✅ Show feedback transaction hash after success */}
+        {feedbackTxHash && (
+          <div style={{ marginTop: "12px", background: "rgba(255,255,255,0.15)", borderRadius: "8px", padding: "10px" }}>
+            <p style={{ margin: "0 0 4px 0", fontSize: "12px", opacity: 0.9 }}>✅ Transaction confirmed!</p>
+            <p style={{ margin: "0 0 6px 0", fontSize: "10px", wordBreak: "break-all", opacity: 0.8 }}>{feedbackTxHash}</p>
+            <a
+              href={`https://stellar.expert/explorer/testnet/tx/${feedbackTxHash}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: "white", fontSize: "12px", fontWeight: "bold" }}
+            >
+              View on Stellar Explorer →
+            </a>
+          </div>
+        )}
       </div>
 
     </div>
