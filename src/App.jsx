@@ -22,7 +22,6 @@ const SUPPORTED_WALLETS = [
   { id: "albedo", name: "Albedo", icon: "🌟" },
 ];
 
-// ✅ NEW: Feedback transaction function
 const submitFeedbackTransaction = async (userPublicKey) => {
   const accountRes = await fetch(`${HORIZON_URL}/accounts/${userPublicKey}`);
   const accountData = await accountRes.json();
@@ -34,7 +33,7 @@ const submitFeedbackTransaction = async (userPublicKey) => {
   })
     .addOperation(
       Operation.payment({
-        destination: userPublicKey, // sends to themselves
+        destination: userPublicKey,
         asset: Asset.native(),
         amount: "0.0000001",
       })
@@ -47,7 +46,17 @@ const submitFeedbackTransaction = async (userPublicKey) => {
     networkPassphrase: Networks.TESTNET,
   });
 
-  const signedXDR = signResult.signedTxXdr || signResult;
+  // Handle all Freighter response formats
+  const signedXDR =
+    typeof signResult === "string" ? signResult :
+    signResult?.signedTxXdr ||
+    signResult?.result?.signedTxXdr ||
+    signResult?.xdr ||
+    null;
+
+  if (!signedXDR) {
+    throw new Error("Could not get signed XDR: " + JSON.stringify(signResult));
+  }
 
   const submitRes = await fetch(`${HORIZON_URL}/transactions`, {
     method: "POST",
@@ -58,7 +67,7 @@ const submitFeedbackTransaction = async (userPublicKey) => {
   const submitData = await submitRes.json();
 
   if (!submitData.hash) {
-    throw new Error("Transaction failed: " + JSON.stringify(submitData));
+    throw new Error("Submit failed: " + JSON.stringify(submitData?.extras?.result_codes));
   }
 
   return submitData.hash;
@@ -81,8 +90,6 @@ function App() {
   const [contractLoading, setContractLoading] = useState(false);
   const [tokenResult, setTokenResult] = useState("");
   const [tokenLoading, setTokenLoading] = useState(false);
-
-  // ✅ NEW: Feedback states
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackTxHash, setFeedbackTxHash] = useState("");
 
@@ -279,7 +286,6 @@ function App() {
     }
   };
 
-  // ✅ NEW: Handle feedback button click
   const handleFeedback = async () => {
     if (!wallet) {
       alert("Please connect your wallet first to submit feedback!");
@@ -294,13 +300,11 @@ function App() {
 
       setFeedbackTxHash(hash);
       addEvent(`✅ Feedback tx confirmed: ${hash.slice(0, 12)}...`);
-
-      // Open Google Form after transaction
       window.open(GOOGLE_FORM_URL, "_blank");
 
     } catch (err) {
       addEvent("❌ Feedback tx failed: " + err.message);
-      alert("Transaction failed: " + err.message + "\n\nMake sure Freighter is connected and you have testnet XLM.");
+      alert("Transaction failed: " + err.message);
     } finally {
       setFeedbackLoading(false);
     }
@@ -510,7 +514,7 @@ function App() {
         )}
       </div>
 
-      {/* ✅ NEW: Feedback Banner with Transaction */}
+      {/* Feedback Banner */}
       <div style={{
         padding: "20px 16px",
         background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
@@ -518,7 +522,6 @@ function App() {
       }}>
         <p style={{ margin: "0 0 6px 0", fontWeight: "bold", fontSize: "16px" }}>🙏 Help us improve TrustChain!</p>
         <p style={{ margin: "0 0 12px 0", fontSize: "13px", opacity: 0.9 }}>Share your feedback and wallet address</p>
-
         <button
           onClick={handleFeedback}
           disabled={feedbackLoading}
@@ -530,20 +533,16 @@ function App() {
             border: "none", fontSize: "14px", cursor: "pointer"
           }}
         >
-          {feedbackLoading ? "⏳ Processing transaction..." : "📝 Fill Feedback Form"}
+          {feedbackLoading ? "⏳ Processing..." : "📝 Fill Feedback Form"}
         </button>
 
-        {/* ✅ Show feedback transaction hash after success */}
         {feedbackTxHash && (
           <div style={{ marginTop: "12px", background: "rgba(255,255,255,0.15)", borderRadius: "8px", padding: "10px" }}>
-            <p style={{ margin: "0 0 4px 0", fontSize: "12px", opacity: 0.9 }}>✅ Transaction confirmed!</p>
+            <p style={{ margin: "0 0 4px 0", fontSize: "12px" }}>✅ Transaction confirmed!</p>
             <p style={{ margin: "0 0 6px 0", fontSize: "10px", wordBreak: "break-all", opacity: 0.8 }}>{feedbackTxHash}</p>
-            <a
-              href={`https://stellar.expert/explorer/testnet/tx/${feedbackTxHash}`}
-              target="_blank"
-              rel="noreferrer"
-              style={{ color: "white", fontSize: "12px", fontWeight: "bold" }}
-            >
+            <a href={`https://stellar.expert/explorer/testnet/tx/${feedbackTxHash}`}
+              target="_blank" rel="noreferrer"
+              style={{ color: "white", fontSize: "12px", fontWeight: "bold" }}>
               View on Stellar Explorer →
             </a>
           </div>
