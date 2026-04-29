@@ -280,12 +280,6 @@ trustchain-mvp/
 
 ---
 
-## 📄 License
-
-MIT License — open source, fork and build!
-
----
-
 <div align="center">
 
 *Built with ❤️ for the Stellar ecosystem*
