@@ -282,7 +282,7 @@ trustchain-mvp/
 
 *Built with ❤️ for the Stellar ecosystem*
 
-**[🌐 Live Demo](https://trustchain-mvp-omega.vercel.app) • [🎥 Demo Video](https://youtu.be/qK3RfrvmEK) • [💻 GitHub](https://github.com/Pritty05/trustchain-mvp)**
+**[🌐 Live Demo](https://trustchain-mvp-omega.vercel.app) • [🎥 Demo Video](https://youtu.be/coaLs_8rD8k) • [💻 GitHub](https://github.com/Pritty05/trustchain-mvp)**
 
 *Stellar Journey to Mastery — Level 5 Blue Belt Submission*
 
